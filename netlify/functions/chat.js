@@ -58,6 +58,4 @@ exports.handler = async function (event) {
     };
   }
 };
-const response = await fetch('/api/your-endpoint', { ... });
-const text = await response.text(); // <-- read as TEXT first
-console.log(text); // <-- this will show the HTML error
+
