@@ -14,11 +14,12 @@ exports.handler = async function (event) {
   let body;
   try {
     body = JSON.parse(event.body);
-  } catch {
+  } catch (e) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid request.' }) };
   }
 
-  const { system, messages } = body;
+  const system = body.system;
+  const messages = body.messages;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -32,24 +33,32 @@ exports.handler = async function (event) {
         model: 'claude-sonnet-4-6',
         max_tokens: 1500,
         system: system || '',
-        messages
+        messages: messages
       })
     });
 
     const data = await response.json();
 
     if (!response.ok) {
+      var errMsg = 'Anthropic API error';
+      if (data && data.error && data.error.message) {
+        errMsg = data.error.message;
+      }
       return {
         statusCode: response.status,
-        body: JSON.stringify({ error: data.error?.message || 'Anthropic API error' })
+        body: JSON.stringify({ error: errMsg })
       };
     }
 
-    const reply = data.content?.[0]?.text || '';
+    var reply = '';
+    if (data && data.content && data.content[0] && data.content[0].text) {
+      reply = data.content[0].text;
+    }
+
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reply })
+      body: JSON.stringify({ reply: reply })
     };
   } catch (err) {
     return {
@@ -58,4 +67,3 @@ exports.handler = async function (event) {
     };
   }
 };
-
