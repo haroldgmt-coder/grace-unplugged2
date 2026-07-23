@@ -30,7 +30,7 @@ exports.handler = async function (event) {
     }
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: ,
+      headers,
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 1500,
@@ -38,7 +38,7 @@ exports.handler = async function (event) {
         messages: messages
       })
     });
-    console.log("DEBUG-RESPONSE_RECEIVED", { response, headers });
+    console.log("DEBUG-RESPONSE_RECEIVED", { response, headers, system });
     const data = await response.json();
     console.log("DEBUG-RESPONSE_PARSED", { data });
 
