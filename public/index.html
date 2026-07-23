@@ -418,17 +418,21 @@ async function sendMessage() {
   showTyping();
 
   try {
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system: TOOLS[currentTool].system,
-        messages: conversationHistory
-      })
-    });
-
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || 'Server error');
+   const res = await fetch('/api/chat', {
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify({ system: TOOLS[currentTool].system, messages: conversationHistory })
+   });
+   
+   const raw = await res.text();
+   let data;
+   try {
+     data = JSON.parse(raw);
+   } catch {
+     throw new Error(`HTTP ${res.status} — non-JSON response: ${raw.slice(0, 150)}`);
+   }
+   
+   if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
 
     conversationHistory.push({ role: 'assistant', content: data.reply });
     removeTyping();
