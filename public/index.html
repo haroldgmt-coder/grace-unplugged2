@@ -42,21 +42,42 @@
   .msg-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
   .msg-avatar.ai { background: #EF9F27; color: #1a0f00; }
   .msg-avatar.user { background: #3C3489; color: #CECBF6; }
-  .msg-bubble { background: #1e1810; border: 1px solid #2e2620; border-radius: 12px; padding: 12px 16px; font-size: 14px; line-height: 1.7; color: #e8dcc8; max-width: 640px; }
+  .msg-bubble { background: #1e1810; border: 1px solid #2e2620; border-radius: 12px; padding: 12px 16px; font-size: 14px; line-height: 1.7; color: #e8dcc8; max-width: 640px; overflow-wrap: break-word; }
   .msg.user .msg-bubble { background: #1e1630; border-color: #302860; color: #d8d0f0; }
-  .msg-bubble h3 { font-size: 14px; font-weight: 600; color: #EF9F27; margin: 10px 0 6px; }
-  .msg-bubble h3:first-child { margin-top: 0; }
-  .msg-bubble ul { padding-left: 18px; margin: 4px 0 8px; }
+
+  /* --- Rendered markdown ---------------------------------------------- */
+  .msg-bubble > :last-child { margin-bottom: 0; }
+  .msg-bubble p { margin: 0 0 10px; }
+  .msg-bubble h2, .msg-bubble h3, .msg-bubble h4 { color: #EF9F27; font-weight: 600; line-height: 1.35; margin: 16px 0 8px; }
+  .msg-bubble > h2:first-child, .msg-bubble > h3:first-child, .msg-bubble > h4:first-child { margin-top: 0; }
+  .msg-bubble h2 { font-size: 16px; }
+  .msg-bubble h3 { font-size: 14px; }
+  .msg-bubble h4 { font-size: 13px; letter-spacing: 0.02em; text-transform: uppercase; color: #c4aa80; }
+  .msg-bubble ul, .msg-bubble ol { margin: 0 0 10px; padding-left: 22px; }
+  .msg-bubble ul ul, .msg-bubble ul ol, .msg-bubble ol ul, .msg-bubble ol ol { margin: 4px 0 0; }
   .msg-bubble li { margin-bottom: 4px; }
-  .msg-bubble strong { color: #f5f0eb; }
+  .msg-bubble li::marker { color: #a8956e; }
+  .msg-bubble blockquote { margin: 0 0 10px; padding: 2px 0 2px 14px; border-left: 2px solid #3a2e1e; color: #c4aa80; font-style: italic; }
+  .msg-bubble strong { color: #f5f0eb; font-weight: 600; }
+  .msg-bubble em { font-style: italic; }
+  .msg-bubble del { opacity: 0.55; }
+  .msg-bubble a { color: #EF9F27; text-underline-offset: 2px; }
+  .msg-bubble hr { border: none; border-top: 1px solid #2e2620; margin: 14px 0; }
+  .msg-bubble code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; background: #2a2118; border-radius: 4px; padding: 1px 5px; }
+  .msg-bubble pre { background: #14100b; border: 1px solid #2e2620; border-radius: 8px; padding: 10px 12px; margin: 0 0 10px; overflow-x: auto; }
+  .msg-bubble pre code { background: none; padding: 0; font-size: 12px; line-height: 1.6; }
+  .msg-bubble table { width: 100%; border-collapse: collapse; margin: 0 0 10px; font-size: 13px; }
+  .msg-bubble th, .msg-bubble td { border: 1px solid #2e2620; padding: 6px 9px; text-align: left; vertical-align: top; }
+  .msg-bubble th { background: rgba(239,159,39,0.08); color: #EF9F27; font-weight: 600; }
+
   .msg-bubble .section { margin-bottom: 10px; }
   .msg-bubble .section:last-child { margin-bottom: 0; }
   .msg-bubble .tag { display: inline-block; background: rgba(239,159,39,0.12); color: #EF9F27; font-size: 11px; padding: 2px 8px; border-radius: 999px; margin: 2px 2px 6px 0; }
   .msg-bubble .err-detail { display: block; margin-top: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.5; color: #a8956e; white-space: pre-wrap; word-break: break-word; }
-  .msg-bubble .interrupted { display: block; margin-top: 10px; padding-top: 8px; border-top: 1px solid #3a2e1e; font-size: 12px; color: #a8956e; }
+  .msg-bubble .notice { display: block; margin-top: 12px; padding-top: 9px; border-top: 1px solid #3a2e1e; font-size: 12px; line-height: 1.6; color: #a8956e; }
 
   /* Blinking caret while tokens are still arriving. */
-  .msg-bubble.streaming .section:last-child::after { content: '▍'; color: #EF9F27; margin-left: 2px; animation: caret 1s steps(1) infinite; }
+  .msg-bubble.streaming > :last-child::after { content: '▍'; color: #EF9F27; margin-left: 2px; animation: caret 1s steps(1) infinite; }
   @keyframes caret { 50% { opacity: 0; } }
 
   .typing { display: flex; align-items: center; gap: 5px; padding: 12px 16px; background: #1e1810; border: 1px solid #2e2620; border-radius: 12px; width: fit-content; }
@@ -81,7 +102,7 @@
   .send-btn svg { width: 16px; height: 16px; }
 
   @media (prefers-reduced-motion: reduce) {
-    .typing span, .msg-bubble.streaming .section:last-child::after { animation: none; }
+    .typing span, .msg-bubble.streaming > :last-child::after { animation: none; }
   }
 </style>
 </head>
@@ -323,6 +344,156 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/* ---------------------------------------------------------------------------
+   Markdown rendering
+
+   Everything is HTML-escaped before a single tag is added, so model output can
+   never inject markup. The parser walks line by line and keeps a stack of open
+   lists, which is what makes nested and numbered lists work — the old
+   regex-only version could only see a dash at the very start of a line.
+--------------------------------------------------------------------------- */
+
+function renderInline(str) {
+  return str
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\(([^)\s"']+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*\w])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+    .replace(/(^|[\s(])_([^_\n]+)_(?=[\s.,;:!?)]|$)/g, '$1<em>$2</em>')
+    .replace(/~~([^~]+)~~/g, '<del>$1</del>');
+}
+
+function renderMarkdown(source) {
+  // Fenced code comes out first so nothing below rewrites its contents.
+  const codeBlocks = [];
+  const text = escapeHtml(source).replace(/```[^\n]*\n?([\s\S]*?)(?:```|$)/g, (_, code) => {
+    codeBlocks.push(code.replace(/\n+$/, ''));
+    return `\u0000${codeBlocks.length - 1}\u0000`;
+  });
+
+  const html = [];
+  const lists = [];      // open <ul>/<ol> elements, outermost first
+  let paragraph = [];
+  let quote = [];
+  let table = null;
+
+  const flushParagraph = () => {
+    if (paragraph.length) {
+      html.push(`<p>${renderInline(paragraph.join(' '))}</p>`);
+      paragraph = [];
+    }
+  };
+  const flushQuote = () => {
+    if (quote.length) {
+      html.push(`<blockquote>${renderInline(quote.join(' '))}</blockquote>`);
+      quote = [];
+    }
+  };
+  const flushTable = () => {
+    if (!table) return;
+    const cells = (row) => row.trim().replace(/^\||\|$/g, '').split('|').map(c => renderInline(c.trim()));
+    const header = cells(table.shift());
+    let out = `<table><thead><tr>${header.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`;
+    for (const row of table) out += `<tr>${cells(row).map(c => `<td>${c}</td>`).join('')}</tr>`;
+    html.push(`${out}</tbody></table>`);
+    table = null;
+  };
+  const closeLists = (toIndent) => {
+    while (lists.length && lists[lists.length - 1].indent >= toIndent) {
+      html.push(`</${lists.pop().tag}>`);
+    }
+  };
+  // Anything that isn't a list item ends the current list.
+  const closeBlocks = () => { flushParagraph(); flushQuote(); flushTable(); closeLists(0); };
+
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.replace(/\s+$/, '');
+
+    if (/^\u0000\d+\u0000$/.test(line.trim())) {         // fenced code placeholder
+      closeBlocks();
+      html.push(line.trim());
+      continue;
+    }
+
+    if (!line.trim()) {                                   // blank line
+      flushParagraph();
+      flushQuote();
+      flushTable();
+      // Lists stay open across blank lines, otherwise a loose numbered list
+      // would restart at 1 after every gap.
+      continue;
+    }
+
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (heading) {
+      closeBlocks();
+      const level = Math.min(heading[1].length + 1, 4);
+      html.push(`<h${level}>${renderInline(heading[2].trim())}</h${level}>`);
+      continue;
+    }
+
+    if (/^\s{0,3}(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {  // horizontal rule
+      closeBlocks();
+      html.push('<hr>');
+      continue;
+    }
+
+    if (/^\s*\|.*\|\s*$/.test(line)) {                    // table row
+      flushParagraph();
+      flushQuote();
+      closeLists(0);
+      if (/^\s*\|[\s:|-]+\|\s*$/.test(line)) continue;    // the |---|---| divider
+      (table = table || []).push(line);
+      continue;
+    }
+    flushTable();
+
+    const blockquote = /^\s*>\s?(.*)$/.exec(line);
+    if (blockquote) {
+      flushParagraph();
+      closeLists(0);
+      quote.push(blockquote[1]);
+      continue;
+    }
+    flushQuote();
+
+    const item = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(line);
+    if (item) {
+      flushParagraph();
+      const indent = item[1].length;
+      const tag = /^\d/.test(item[2]) ? 'ol' : 'ul';
+      closeLists(indent + 1);
+      const current = lists[lists.length - 1];
+      if (!current || current.indent < indent) {
+        html.push(`<${tag}>`);
+        lists.push({ tag, indent });
+      } else if (current.tag !== tag) {
+        html.push(`</${lists.pop().tag}><${tag}>`);
+        lists.push({ tag, indent });
+      }
+      html.push(`<li>${renderInline(item[3])}</li>`);
+      continue;
+    }
+
+    // A plain line that's indented under a list item continues that item.
+    if (lists.length && /^\s{2,}/.test(rawLine) && html[html.length - 1].startsWith('<li>')) {
+      const previous = html.pop();
+      html.push(`${previous.slice(0, -5)} ${renderInline(line.trim())}</li>`);
+      continue;
+    }
+
+    closeLists(0);
+    paragraph.push(line.trim());
+  }
+
+  closeBlocks();
+
+  return html.join('').replace(/\u0000(\d+)\u0000/g, (_, i) => `<pre><code>${codeBlocks[i]}</code></pre>`);
+}
+
+/* ------------------------------------------------------------------------ */
+
 function setTool(tool, btn) {
   currentTool = tool;
   conversationHistory = [];
@@ -413,18 +584,6 @@ function removeTyping() {
   if (t) t.remove();
 }
 
-function formatResponse(text) {
-  return text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/^#{1,3} (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^[-•] (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>[\s\S]*?<\/li>\n?)+/g, m => `<ul>${m}</ul>`)
-    .replace(/\n\n+/g, '</div><div class="section">')
-    .replace(/^/, '<div class="section">')
-    .replace(/$/, '</div>');
-}
-
 function showError(message, detail) {
   let html = `<strong>Something went wrong.</strong> ${escapeHtml(message)}`;
   if (detail) html += `<span class="err-detail">${escapeHtml(detail)}</span>`;
@@ -444,8 +603,7 @@ function parseSseLines(buffer, onEvent) {
     try {
       onEvent(JSON.parse(payload));
     } catch {
-      // A partial JSON payload can't happen here — SSE guarantees whole lines —
-      // so anything unparseable is safe to skip.
+      // SSE guarantees whole lines, so anything unparseable is safe to skip.
     }
   }
   return buffer;
@@ -467,6 +625,16 @@ async function sendMessage() {
 
   let bubble = null;
   let reply = '';
+  let frame = null;
+
+  // Re-parsing the whole message on every token gets expensive on a long
+  // sermon, so repaint at most once per animation frame.
+  const paint = () => {
+    frame = null;
+    bubble.innerHTML = renderMarkdown(reply);
+    scrollToBottom();
+  };
+  const schedulePaint = () => { if (frame === null) frame = requestAnimationFrame(paint); };
 
   try {
     const res = await fetch('/api/chat', {
@@ -481,8 +649,7 @@ async function sendMessage() {
     const contentType = res.headers.get('content-type') || '';
 
     // Anything that isn't an event stream is a failure — read it as text so an
-    // HTML error page from a proxy or a 404 shows up legibly instead of
-    // blowing up JSON.parse.
+    // HTML error page from a proxy or a 404 shows up legibly.
     if (!res.ok || !contentType.includes('text/event-stream')) {
       const raw = await res.text();
       let message = null;
@@ -510,6 +677,7 @@ async function sendMessage() {
     const decoder = new TextDecoder();
     let buffer = '';
     let streamError = null;
+    let stopReason = null;
 
     while (true) {
       const { value, done } = await reader.read();
@@ -524,8 +692,9 @@ async function sendMessage() {
             bubble.classList.add('streaming');
           }
           reply += evt.delta.text;
-          bubble.innerHTML = formatResponse(reply);
-          scrollToBottom();
+          schedulePaint();
+        } else if (evt.type === 'message_delta' && evt.delta && evt.delta.stop_reason) {
+          stopReason = evt.delta.stop_reason;
         } else if (evt.type === 'error') {
           streamError = (evt.error && evt.error.message) || 'The response stream ended with an error.';
         }
@@ -534,21 +703,32 @@ async function sendMessage() {
       if (streamError) break;
     }
 
-    if (bubble) bubble.classList.remove('streaming');
+    if (frame !== null) cancelAnimationFrame(frame);
+    if (bubble) {
+      bubble.classList.remove('streaming');
+      bubble.innerHTML = renderMarkdown(reply);
+    }
 
     if (streamError) throw new Error(streamError);
     if (!reply) throw new Error('The response came back empty.');
 
     conversationHistory.push({ role: 'assistant', content: reply });
+
+    // The old silent truncation: the model ran out of room and stopped. The
+    // text is still a valid turn, so it stays in history and "continue" works.
+    if (stopReason === 'max_tokens') {
+      bubble.innerHTML += `<span class="notice">This answer reached the length limit and stopped early. Type <strong>continue</strong> to pick up where it left off, or raise <code>MAX_TOKENS</code> in the edge function.</span>`;
+      scrollToBottom();
+    }
   } catch (err) {
+    if (frame !== null) cancelAnimationFrame(frame);
     removeTyping();
-    if (bubble) bubble.classList.remove('streaming');
     conversationHistory.pop();
 
-    if (reply) {
-      // Keep whatever arrived — a half-finished outline still has value — but
-      // mark it, since it isn't in the conversation history.
-      bubble.innerHTML += `<span class="interrupted">The response was cut off: ${escapeHtml(err.message)} Send the message again to start over.</span>`;
+    if (bubble) {
+      bubble.classList.remove('streaming');
+      bubble.innerHTML = renderMarkdown(reply) +
+        `<span class="notice">The response was cut off: ${escapeHtml(err.message)} Send the message again to start over.</span>`;
     } else {
       showError(err.message);
     }
