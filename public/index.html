@@ -52,6 +52,12 @@
   .msg-bubble .section { margin-bottom: 10px; }
   .msg-bubble .section:last-child { margin-bottom: 0; }
   .msg-bubble .tag { display: inline-block; background: rgba(239,159,39,0.12); color: #EF9F27; font-size: 11px; padding: 2px 8px; border-radius: 999px; margin: 2px 2px 6px 0; }
+  .msg-bubble .err-detail { display: block; margin-top: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.5; color: #a8956e; white-space: pre-wrap; word-break: break-word; }
+  .msg-bubble .interrupted { display: block; margin-top: 10px; padding-top: 8px; border-top: 1px solid #3a2e1e; font-size: 12px; color: #a8956e; }
+
+  /* Blinking caret while tokens are still arriving. */
+  .msg-bubble.streaming .section:last-child::after { content: '▍'; color: #EF9F27; margin-left: 2px; animation: caret 1s steps(1) infinite; }
+  @keyframes caret { 50% { opacity: 0; } }
 
   .typing { display: flex; align-items: center; gap: 5px; padding: 12px 16px; background: #1e1810; border: 1px solid #2e2620; border-radius: 12px; width: fit-content; }
   .typing span { width: 6px; height: 6px; background: #EF9F27; border-radius: 50%; animation: bounce 1.2s infinite; }
@@ -73,6 +79,10 @@
   .send-btn:hover { background: #d4891a; }
   .send-btn:disabled { background: #3a2e1e; cursor: not-allowed; }
   .send-btn svg { width: 16px; height: 16px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .typing span, .msg-bubble.streaming .section:last-child::after { animation: none; }
+  }
 </style>
 </head>
 <body>
@@ -309,6 +319,10 @@ let currentTool = 'sermon';
 let isLoading = false;
 let conversationHistory = [];
 
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function setTool(tool, btn) {
   currentTool = tool;
   conversationHistory = [];
@@ -366,6 +380,13 @@ function showWelcome() {
   `);
 }
 
+// Only follow the stream down if the reader hasn't scrolled up to re-read something.
+function scrollToBottom(force) {
+  const msgs = document.getElementById('messages');
+  const nearBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 120;
+  if (force || nearBottom) msgs.scrollTop = msgs.scrollHeight;
+}
+
 function addBubble(role, html) {
   const msgs = document.getElementById('messages');
   const isUser = role === 'user';
@@ -373,7 +394,8 @@ function addBubble(role, html) {
   div.className = `msg${isUser ? ' user' : ''}`;
   div.innerHTML = `<div class="msg-avatar ${isUser ? 'user' : 'ai'}">${isUser ? 'HD' : 'GU'}</div><div class="msg-bubble">${html}</div>`;
   msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
+  scrollToBottom(true);
+  return div.querySelector('.msg-bubble');
 }
 
 function showTyping() {
@@ -383,7 +405,7 @@ function showTyping() {
   div.id = 'typingIndicator';
   div.innerHTML = `<div class="msg-avatar ai">GU</div><div class="typing"><span></span><span></span><span></span></div>`;
   msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
+  scrollToBottom(true);
 }
 
 function removeTyping() {
@@ -403,6 +425,32 @@ function formatResponse(text) {
     .replace(/$/, '</div>');
 }
 
+function showError(message, detail) {
+  let html = `<strong>Something went wrong.</strong> ${escapeHtml(message)}`;
+  if (detail) html += `<span class="err-detail">${escapeHtml(detail)}</span>`;
+  addBubble('ai', html);
+}
+
+// Turns a chunk of SSE text into events. Anthropic sends `event:` and `data:`
+// lines; only the data lines carry the payload we need.
+function parseSseLines(buffer, onEvent) {
+  let newlineIndex;
+  while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+    const line = buffer.slice(0, newlineIndex).trim();
+    buffer = buffer.slice(newlineIndex + 1);
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    if (!payload) continue;
+    try {
+      onEvent(JSON.parse(payload));
+    } catch {
+      // A partial JSON payload can't happen here — SSE guarantees whole lines —
+      // so anything unparseable is safe to skip.
+    }
+  }
+  return buffer;
+}
+
 async function sendMessage() {
   const ta = document.getElementById('userInput');
   const text = ta.value.trim();
@@ -413,37 +461,101 @@ async function sendMessage() {
   isLoading = true;
   document.getElementById('sendBtn').disabled = true;
 
-  addBubble('user', text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'));
+  addBubble('user', escapeHtml(text));
   conversationHistory.push({ role: 'user', content: text });
   showTyping();
 
-  try {
-   const res = await fetch('/api/chat', {
-     method: 'POST',
-     headers: { 'Content-Type': 'application/json' },
-     body: JSON.stringify({ system: TOOLS[currentTool].system, messages: conversationHistory })
-   });
-   
-   const raw = await res.text();
-   let data;
-   try {
-     data = JSON.parse(raw);
-   } catch {
-     throw new Error(`HTTP ${res.status} — non-JSON response: ${raw.slice(0, 150)}`);
-   }
-   
-   if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+  let bubble = null;
+  let reply = '';
 
-    conversationHistory.push({ role: 'assistant', content: data.reply });
-    removeTyping();
-    addBubble('ai', formatResponse(data.reply));
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system: TOOLS[currentTool].system,
+        messages: conversationHistory
+      })
+    });
+
+    const contentType = res.headers.get('content-type') || '';
+
+    // Anything that isn't an event stream is a failure — read it as text so an
+    // HTML error page from a proxy or a 404 shows up legibly instead of
+    // blowing up JSON.parse.
+    if (!res.ok || !contentType.includes('text/event-stream')) {
+      const raw = await res.text();
+      let message = null;
+      try {
+        message = JSON.parse(raw).error;
+      } catch { /* not JSON */ }
+
+      removeTyping();
+      conversationHistory.pop();
+
+      if (message) {
+        showError(message);
+      } else if (raw.trim().startsWith('<')) {
+        showError(
+          `/api/chat returned a web page instead of a response stream (HTTP ${res.status}). The request never reached the edge function.`,
+          raw.slice(0, 300)
+        );
+      } else {
+        showError(`The server sent an unreadable response (HTTP ${res.status}).`, raw.slice(0, 300));
+      }
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let streamError = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      buffer = parseSseLines(buffer, (evt) => {
+        if (evt.type === 'content_block_delta' && evt.delta && evt.delta.type === 'text_delta') {
+          if (!bubble) {
+            removeTyping();
+            bubble = addBubble('ai', '');
+            bubble.classList.add('streaming');
+          }
+          reply += evt.delta.text;
+          bubble.innerHTML = formatResponse(reply);
+          scrollToBottom();
+        } else if (evt.type === 'error') {
+          streamError = (evt.error && evt.error.message) || 'The response stream ended with an error.';
+        }
+      });
+
+      if (streamError) break;
+    }
+
+    if (bubble) bubble.classList.remove('streaming');
+
+    if (streamError) throw new Error(streamError);
+    if (!reply) throw new Error('The response came back empty.');
+
+    conversationHistory.push({ role: 'assistant', content: reply });
   } catch (err) {
     removeTyping();
-    addBubble('ai', `<strong>Error:</strong> ${err.message}`);
-  }
+    if (bubble) bubble.classList.remove('streaming');
+    conversationHistory.pop();
 
-  isLoading = false;
-  document.getElementById('sendBtn').disabled = false;
+    if (reply) {
+      // Keep whatever arrived — a half-finished outline still has value — but
+      // mark it, since it isn't in the conversation history.
+      bubble.innerHTML += `<span class="interrupted">The response was cut off: ${escapeHtml(err.message)} Send the message again to start over.</span>`;
+    } else {
+      showError(err.message);
+    }
+  } finally {
+    isLoading = false;
+    document.getElementById('sendBtn').disabled = false;
+  }
 }
 
 function handleKey(e) {
