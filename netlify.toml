@@ -1,8 +1,6 @@
 [build]
   publish = "public"
-  functions = "netlify/functions"
+  edge_functions = "netlify/edge-functions"
 
-[[redirects]]
-  from = "/api/chat"
-  to = "/.netlify/functions/chat"
-  status = 200
+# No [[redirects]] block for /api/chat — the edge function claims that path
+# itself via `export const config = { path: "/api/chat" }`.
