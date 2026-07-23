@@ -4,7 +4,7 @@ exports.handler = async function (event) {
   }
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-  console.log("DEBUG-API_KEY", { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY });
+  console.log("DEBUG-API_KEY", { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY. raw: JSON.stringify(ANTHROPIC_API_KEY) });
   if (!ANTHROPIC_API_KEY) {
     return {
       statusCode: 500,
