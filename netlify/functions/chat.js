@@ -4,6 +4,7 @@ exports.handler = async function (event) {
   }
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+  console.log("DEBUG-API_KEY", { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY });
   if (!ANTHROPIC_API_KEY) {
     return {
       statusCode: 500,
@@ -36,8 +37,9 @@ exports.handler = async function (event) {
         messages: messages
       })
     });
-
+    console.log("DEBUG-RESPONSE_RECEIVED", { response });
     const data = await response.json();
+    console.log("DEBUG-RESPONSE_PARSED", { data });
 
     if (!response.ok) {
       var errMsg = 'Anthropic API error';
