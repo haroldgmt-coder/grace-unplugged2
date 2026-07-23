@@ -74,6 +74,8 @@
   .msg-bubble .section:last-child { margin-bottom: 0; }
   .msg-bubble .tag { display: inline-block; background: rgba(239,159,39,0.12); color: #EF9F27; font-size: 11px; padding: 2px 8px; border-radius: 999px; margin: 2px 2px 6px 0; }
   .msg-bubble .err-detail { display: block; margin-top: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.5; color: #a8956e; white-space: pre-wrap; word-break: break-word; }
+  .msg-bubble .err-ref { display: block; margin-top: 8px; font-size: 12px; color: #a8956e; }
+  .msg-bubble .err-ref code { font-size: 11.5px; user-select: all; }
   .msg-bubble .notice { display: block; margin-top: 12px; padding-top: 9px; border-top: 1px solid #3a2e1e; font-size: 12px; line-height: 1.6; color: #a8956e; }
 
   /* Blinking caret while tokens are still arriving. */
@@ -87,7 +89,7 @@
   @keyframes bounce { 0%,60%,100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-5px); opacity: 1; } }
 
   .input-area { padding: 12px 20px 16px; background: #140f0b; border-top: 1px solid #2e2620; flex-shrink: 0; }
-  .input-meta { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+  .input-meta { display: flex; justify-content: flex-end; gap: 6px; margin-bottom: 8px; }
   .clear-btn { background: none; border: 1px solid #2e2620; color: #6b5a40; font-size: 11px; padding: 3px 10px; border-radius: 999px; cursor: pointer; transition: all 0.15s; }
   .clear-btn:hover { border-color: #a8956e; color: #a8956e; }
   .quick-prompts { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -202,6 +204,7 @@
     <div class="messages" id="messages"></div>
     <div class="input-area">
       <div class="input-meta">
+        <button class="clear-btn" id="diagBtn" onclick="copyDiagnostics()">Copy diagnostics</button>
         <button class="clear-btn" onclick="clearChat()">Clear conversation</button>
       </div>
       <div class="quick-prompts" id="quickPrompts"></div>
@@ -339,6 +342,74 @@ Format responses with pastoral warmth. Use NKJV scriptures. Honor the dignity of
 let currentTool = 'sermon';
 let isLoading = false;
 let conversationHistory = [];
+
+/* ---------------------------------------------------------------------------
+   Diagnostics
+
+   A rolling buffer of what the app did, with no message text in it — counts and
+   timings only. Pastoral Care conversations contain confidential details about
+   named people; those must never reach a log.
+
+   "Copy diagnostics" puts the buffer on the clipboard so a non-technical user
+   can paste it straight into a bug report.
+--------------------------------------------------------------------------- */
+
+const DIAGNOSTIC_LIMIT = 60;
+const diagnostics = [];
+const sessionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).slice(0, 8);
+
+function logEvent(event, fields = {}) {
+  const entry = { at: new Date().toISOString(), event, ...fields };
+  diagnostics.push(entry);
+  if (diagnostics.length > DIAGNOSTIC_LIMIT) diagnostics.shift();
+  console.debug('[grace]', entry);
+  return entry;
+}
+
+// Client-side failures never reach the server on their own — a dropped stream
+// or a rendering crash leaves no trace in the function logs. Beacon them over
+// so both halves of a failure land in the same place.
+function reportToServer(entry) {
+  try {
+    const payload = JSON.stringify({ sessionId, ...entry, userAgent: navigator.userAgent });
+    const queued = navigator.sendBeacon('/api/log', new Blob([payload], { type: 'application/json' }));
+    if (!queued) console.error('[grace] beacon rejected (payload too large or queue full)', entry);
+  } catch (err) {
+    // Reporting must never break the app — but it must never vanish either.
+    console.error('[grace] failed to report error', err, entry);
+  }
+}
+
+async function copyDiagnostics() {
+  const btn = document.getElementById('diagBtn');
+  const report = {
+    sessionId,
+    generatedAt: new Date().toISOString(),
+    tool: currentTool,
+    turnsInConversation: conversationHistory.length,
+    page: location.pathname,
+    userAgent: navigator.userAgent,
+    events: diagnostics
+  };
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(report, null, 2));
+    btn.textContent = 'Copied — paste into your bug report';
+  } catch (err) {
+    // Usually a permissions or insecure-context problem. Naming it saves a
+    // round trip when someone reports that the button "doesn't work".
+    btn.textContent = 'Copy failed — see browser console';
+    console.error('[grace] clipboard write failed', err);
+    console.log(JSON.stringify(report, null, 2));
+  }
+  setTimeout(() => { btn.textContent = 'Copy diagnostics'; }, 4000);
+}
+
+window.addEventListener('error', (e) => {
+  reportToServer(logEvent('client.uncaught_error', { message: e.message, source: e.filename, line: e.lineno }));
+});
+window.addEventListener('unhandledrejection', (e) => {
+  reportToServer(logEvent('client.unhandled_rejection', { message: String(e.reason && e.reason.message || e.reason) }));
+});
 
 function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -584,9 +655,12 @@ function removeTyping() {
   if (t) t.remove();
 }
 
-function showError(message, detail) {
+function showError(message, detail, requestId) {
   let html = `<strong>Something went wrong.</strong> ${escapeHtml(message)}`;
   if (detail) html += `<span class="err-detail">${escapeHtml(detail)}</span>`;
+  if (requestId) {
+    html += `<span class="err-ref">Reference code for support: <code>${escapeHtml(requestId)}</code></span>`;
+  }
   addBubble('ai', html);
 }
 
@@ -600,11 +674,22 @@ function parseSseLines(buffer, onEvent) {
     if (!line.startsWith('data:')) continue;
     const payload = line.slice(5).trim();
     if (!payload) continue;
+
+    // Parsing and handling are deliberately separate. Wrapping both in one
+    // try would let a rendering exception get mislabelled as a malformed
+    // line and silently discarded — the app would just stop painting tokens
+    // with nothing in the log to explain it.
+    let event;
     try {
-      onEvent(JSON.parse(payload));
-    } catch {
-      // SSE guarantees whole lines, so anything unparseable is safe to skip.
+      event = JSON.parse(payload);
+    } catch (err) {
+      logEvent('stream.unparseable_line', {
+        message: err.message,
+        line: payload.slice(0, 200)
+      });
+      continue;
     }
+    onEvent(event);
   }
   return buffer;
 }
@@ -626,6 +711,15 @@ async function sendMessage() {
   let bubble = null;
   let reply = '';
   let frame = null;
+  let requestId = null;
+  const startedAt = performance.now();
+  const since = () => Math.round(performance.now() - startedAt);
+
+  logEvent('request.start', {
+    tool: currentTool,
+    turnsSent: conversationHistory.length,
+    promptChars: text.length
+  });
 
   // Re-parsing the whole message on every token gets expensive on a long
   // sermon, so repaint at most once per animation frame.
@@ -641,12 +735,18 @@ async function sendMessage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        tool: currentTool,
+        sessionId,
         system: TOOLS[currentTool].system,
         messages: conversationHistory
       })
     });
 
+    // Set by the edge function on every response, success or failure. This is
+    // the string that ties what the user saw to what the server logged.
+    requestId = res.headers.get('x-request-id');
     const contentType = res.headers.get('content-type') || '';
+    logEvent('response.headers', { status: res.status, contentType, requestId, ms: since() });
 
     // Anything that isn't an event stream is a failure — read it as text so an
     // HTML error page from a proxy or a 404 shows up legibly.
@@ -655,20 +755,32 @@ async function sendMessage() {
       let message = null;
       try {
         message = JSON.parse(raw).error;
-      } catch { /* not JSON */ }
+      } catch (err) {
+        logEvent('response.error_body_not_json', { message: err.message, bodyChars: raw.length });
+      }
 
       removeTyping();
       conversationHistory.pop();
 
+      reportToServer(logEvent('response.not_a_stream', {
+        status: res.status,
+        contentType,
+        requestId,
+        looksLikeHtml: raw.trim().startsWith('<'),
+        bodyPreview: raw.slice(0, 200),
+        ms: since()
+      }));
+
       if (message) {
-        showError(message);
+        showError(message, null, requestId);
       } else if (raw.trim().startsWith('<')) {
         showError(
           `/api/chat returned a web page instead of a response stream (HTTP ${res.status}). The request never reached the edge function.`,
-          raw.slice(0, 300)
+          raw.slice(0, 300),
+          requestId
         );
       } else {
-        showError(`The server sent an unreadable response (HTTP ${res.status}).`, raw.slice(0, 300));
+        showError(`The server sent an unreadable response (HTTP ${res.status}).`, raw.slice(0, 300), requestId);
       }
       return;
     }
@@ -690,6 +802,9 @@ async function sendMessage() {
             removeTyping();
             bubble = addBubble('ai', '');
             bubble.classList.add('streaming');
+            // Time to first token separates "the server is slow" from "the
+            // model is slow" — the two feel identical to the person waiting.
+            logEvent('stream.first_token', { ms: since(), requestId });
           }
           reply += evt.delta.text;
           schedulePaint();
@@ -714,9 +829,17 @@ async function sendMessage() {
 
     conversationHistory.push({ role: 'assistant', content: reply });
 
+    logEvent('stream.complete', {
+      requestId,
+      stopReason,
+      replyChars: reply.length,
+      ms: since()
+    });
+
     // The old silent truncation: the model ran out of room and stopped. The
     // text is still a valid turn, so it stays in history and "continue" works.
     if (stopReason === 'max_tokens') {
+      reportToServer(logEvent('stream.truncated', { requestId, replyChars: reply.length, tool: currentTool }));
       bubble.innerHTML += `<span class="notice">This answer reached the length limit and stopped early. Type <strong>continue</strong> to pick up where it left off, or raise <code>MAX_TOKENS</code> in the edge function.</span>`;
       scrollToBottom();
     }
@@ -725,12 +848,22 @@ async function sendMessage() {
     removeTyping();
     conversationHistory.pop();
 
+    reportToServer(logEvent('stream.failed', {
+      requestId,
+      errorName: err.name,
+      message: err.message,
+      stack: err.stack,
+      charsReceived: reply.length,   // distinguishes "never started" from "died mid-answer"
+      ms: since()
+    }));
+
     if (bubble) {
       bubble.classList.remove('streaming');
       bubble.innerHTML = renderMarkdown(reply) +
-        `<span class="notice">The response was cut off: ${escapeHtml(err.message)} Send the message again to start over.</span>`;
+        `<span class="notice">The response was cut off: ${escapeHtml(err.message)} Send the message again to start over.` +
+        (requestId ? ` Reference code: <code>${escapeHtml(requestId)}</code>.` : '') + `</span>`;
     } else {
-      showError(err.message);
+      showError(err.message, null, requestId);
     }
   } finally {
     isLoading = false;
