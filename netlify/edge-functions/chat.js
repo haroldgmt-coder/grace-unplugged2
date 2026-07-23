@@ -4,7 +4,11 @@
 // within a second or two, which keeps proxies from timing the request out.
 
 const MODEL = 'claude-sonnet-4-6'; // change here if your account uses a different model
-const MAX_TOKENS = 1500;
+
+// A full sermon outline runs well past 1500 tokens, which is what was cutting
+// long answers off mid-sentence. Raise this if you still hit the ceiling — the
+// API returns a clear error if it exceeds what the model allows.
+const MAX_TOKENS = 8000;
 
 export default async (request) => {
   if (request.method !== 'POST') {
