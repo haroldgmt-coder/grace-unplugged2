@@ -58,6 +58,8 @@
   .msg-bubble li { margin-bottom: 4px; }
   .msg-bubble li::marker { color: #a8956e; }
   .msg-bubble blockquote { margin: 0 0 10px; padding: 2px 0 2px 14px; border-left: 2px solid #3a2e1e; color: #c4aa80; font-style: italic; }
+  .msg-bubble blockquote p { margin: 0 0 6px; }
+  .msg-bubble blockquote p:last-child { margin-bottom: 0; }
   .msg-bubble strong { color: #f5f0eb; font-weight: 600; }
   .msg-bubble em { font-style: italic; }
   .msg-bubble del { opacity: 0.55; }
@@ -456,10 +458,18 @@ function renderMarkdown(source) {
     }
   };
   const flushQuote = () => {
-    if (quote.length) {
-      html.push(`<blockquote>${renderInline(quote.join(' '))}</blockquote>`);
-      quote = [];
+    if (!quote.length) return;
+    // Group on blank lines so an attributed quotation keeps its citation on a
+    // separate line instead of running into the quotation itself.
+    const paragraphs = [];
+    let current = [];
+    for (const line of quote) {
+      if (line) current.push(line);
+      else if (current.length) { paragraphs.push(current.join(' ')); current = []; }
     }
+    if (current.length) paragraphs.push(current.join(' '));
+    html.push(`<blockquote>${paragraphs.map(p => `<p>${renderInline(p)}</p>`).join('')}</blockquote>`);
+    quote = [];
   };
   const flushTable = () => {
     if (!table) return;
@@ -520,11 +530,15 @@ function renderMarkdown(source) {
     }
     flushTable();
 
-    const blockquote = /^\s*>\s?(.*)$/.exec(line);
+    // The marker is `&gt;` here, not `>`, because the whole string was
+    // HTML-escaped before parsing. Both are accepted so the parser keeps
+    // working if that escaping ever moves.
+    const blockquote = /^\s*(?:&gt;|>)\s?(.*)$/.exec(line);
     if (blockquote) {
       flushParagraph();
       closeLists(0);
-      quote.push(blockquote[1]);
+      // A bare `>` is a paragraph break within the quote, not content.
+      quote.push(blockquote[1].replace(/^(?:&gt;|>)\s?/, '').trim());
       continue;
     }
     flushQuote();
