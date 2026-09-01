@@ -45,6 +45,24 @@
   .msg-bubble { background: #1e1810; border: 1px solid #2e2620; border-radius: 12px; padding: 12px 16px; font-size: 14px; line-height: 1.7; color: #e8dcc8; max-width: 640px; overflow-wrap: break-word; }
   .msg.user .msg-bubble { background: #1e1630; border-color: #302860; color: #d8d0f0; }
 
+  /* --- Per-message actions --------------------------------------------
+     The bubble's innerHTML is rewritten on every animation frame while a
+     response streams, so anything placed inside it is destroyed on the next
+     repaint. The action button therefore lives in a sibling element, and
+     .msg-body exists purely to give it something bubble-width to anchor to.
+  --------------------------------------------------------------------- */
+  .msg-body { position: relative; display: flex; min-width: 0; }
+  .msg-actions { position: absolute; top: 7px; right: 8px; display: flex; gap: 4px; }
+  .msg-action-btn { background: rgba(15,13,11,0.72); border: 1px solid #3a2e1e; color: #a8956e; width: 27px; height: 27px; border-radius: 7px; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; opacity: 0.5; transition: opacity 0.15s, color 0.15s, border-color 0.15s; }
+  .msg:hover .msg-action-btn { opacity: 1; }
+  .msg-action-btn:hover { color: #EF9F27; border-color: rgba(239,159,39,0.5); }
+  .msg-action-btn:focus-visible { opacity: 1; outline: 2px solid #EF9F27; outline-offset: 2px; }
+  .msg-action-btn svg { width: 15px; height: 15px; }
+  /* Keep the corner clear of text once a button is sitting in it. */
+  .msg-bubble.has-actions { padding-right: 46px; }
+  /* Coarse pointers never hover, so the button stays legible there. */
+  @media (hover: none) { .msg-action-btn { opacity: 0.85; } }
+
   /* --- Rendered markdown ---------------------------------------------- */
   .msg-bubble > :last-child { margin-bottom: 0; }
   .msg-bubble p { margin: 0 0 10px; }
@@ -107,6 +125,53 @@
 
   @media (prefers-reduced-motion: reduce) {
     .typing span, .msg-bubble.streaming > :last-child::after { animation: none; }
+  }
+
+  /* --- Print / save as PDF ---------------------------------------------
+     The response is re-rendered from its original markdown into #printRoot
+     rather than printed in place. Printing the live bubble would inherit the
+     app's fixed-height, overflow:hidden layout and clip everything past the
+     first page, and would carry the screen palette onto paper.
+
+     Paper gets its own treatment: this is a study document a pastor marks up
+     in the pulpit, so serif at reading size, generous leading, dark ink.
+  --------------------------------------------------------------------- */
+  #printRoot { display: none; }
+
+  @media print {
+    @page { margin: 18mm 16mm; }
+
+    body.printing { display: block; background: #fff; color: #14110d; height: auto; min-height: 0; }
+    body.printing > *:not(#printRoot) { display: none !important; }
+    body.printing #printRoot { display: block; }
+
+    #printRoot { font-family: 'Iowan Old Style', Palatino, 'Palatino Linotype', Georgia, serif; font-size: 11.5pt; line-height: 1.6; color: #14110d; }
+
+    .print-head { border-bottom: 1.5pt solid #b07d18; padding-bottom: 7pt; margin-bottom: 16pt; }
+    .print-brand { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 12.5pt; font-weight: 600; letter-spacing: 0.02em; }
+    .print-meta { display: flex; justify-content: space-between; gap: 12pt; margin-top: 3pt; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 8.5pt; color: #5c5348; }
+
+    .print-body h2, .print-body h3, .print-body h4 { font-weight: 700; line-height: 1.3; margin: 15pt 0 5pt; break-after: avoid; page-break-after: avoid; }
+    .print-body > h2:first-child, .print-body > h3:first-child, .print-body > h4:first-child { margin-top: 0; }
+    .print-body h2 { font-size: 14pt; }
+    .print-body h3 { font-size: 12.5pt; }
+    .print-body h4 { font-size: 11pt; color: #4a4238; }
+    .print-body p { margin: 0 0 8pt; orphans: 2; widows: 2; }
+    .print-body ul, .print-body ol { margin: 0 0 8pt; padding-left: 18pt; }
+    .print-body ul ul, .print-body ul ol, .print-body ol ul, .print-body ol ol { margin: 3pt 0 0; }
+    .print-body li { margin-bottom: 3pt; break-inside: avoid; }
+    .print-body blockquote { margin: 0 0 9pt; padding-left: 11pt; border-left: 2pt solid #d8cfbe; font-style: italic; break-inside: avoid; }
+    .print-body blockquote p { margin: 0 0 4pt; }
+    .print-body blockquote p:last-child { margin-bottom: 0; }
+    .print-body hr { border: none; border-top: 0.5pt solid #cfc7ba; margin: 12pt 0; }
+    .print-body a { color: #14110d; text-decoration: none; }
+    .print-body code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9.5pt; }
+    .print-body pre { border: 0.5pt solid #cfc7ba; border-radius: 3pt; padding: 6pt 8pt; margin: 0 0 8pt; break-inside: avoid; white-space: pre-wrap; }
+    .print-body table { width: 100%; border-collapse: collapse; font-size: 10pt; margin: 0 0 9pt; break-inside: avoid; }
+    .print-body th, .print-body td { border: 0.5pt solid #b3aa9b; padding: 4pt 6pt; text-align: left; vertical-align: top; }
+    .print-body th { font-weight: 700; background: #f2ece1; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    .print-foot { margin-top: 18pt; padding-top: 6pt; border-top: 0.5pt solid #cfc7ba; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 8pt; color: #6b6155; }
   }
 </style>
 </head>
@@ -219,6 +284,10 @@
     </div>
   </div>
 </div>
+
+<!-- Filled just before printing, emptied straight after. Never holds content
+     while the app is idle, and is never sent anywhere. -->
+<div id="printRoot" aria-hidden="true"></div>
 
 <script>
 const TOOLS = {
@@ -577,6 +646,111 @@ function renderMarkdown(source) {
   return html.join('').replace(/\u0000(\d+)\u0000/g, (_, i) => `<pre><code>${codeBlocks[i]}</code></pre>`);
 }
 
+/* ---------------------------------------------------------------------------
+   Print / save as PDF
+
+   Everything here is local. The response is re-rendered from the markdown the
+   browser already holds, handed to the browser's own print pipeline, and the
+   staging element is emptied again. Nothing is uploaded, and nothing about the
+   response beyond its length is logged — a Pastoral Care answer names real
+   people in real crises.
+
+   Native print is also what makes the output worth keeping: real vector text
+   that stays selectable and searchable in the saved PDF, which a canvas-to-
+   image library could not produce.
+--------------------------------------------------------------------------- */
+
+const PRINT_ICON = `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+  <path d="M4.75 6.5V2.75h6.5V6.5" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+  <path d="M4.75 11.25H3.25A1.25 1.25 0 0 1 2 10V7.75A1.25 1.25 0 0 1 3.25 6.5h9.5A1.25 1.25 0 0 1 14 7.75V10a1.25 1.25 0 0 1-1.25 1.25h-1.5" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+  <rect x="4.75" y="9.25" width="6.5" height="4" rx="0.75" stroke="currentColor" stroke-width="1.3" fill="none"/>
+</svg>`;
+
+// The bubble may end with an appended notice (truncation, cut-off stream) that
+// belongs on screen but not on paper, so print re-renders from the markdown
+// rather than cloning the DOM.
+function addPrintAction(bubbleEl, meta) {
+  if (!bubbleEl || !meta || !meta.markdown || !meta.markdown.trim()) return;
+  const actions = bubbleEl.parentElement && bubbleEl.parentElement.querySelector('.msg-actions');
+  if (!actions || actions.querySelector('.print-btn')) return;
+
+  bubbleEl.classList.add('has-actions');
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'msg-action-btn print-btn';
+  btn.title = 'Print or save as PDF';
+  btn.setAttribute('aria-label', 'Print this response or save it as a PDF');
+  btn.innerHTML = PRINT_ICON;
+  btn.addEventListener('click', () => printResponse(meta));
+  actions.appendChild(btn);
+}
+
+// Browsers seed the PDF filename from document.title, so a good title here is
+// the difference between "Grace Unplugged - Sermon Builder - Psalm 46" and
+// another "document.pdf" in the downloads folder.
+function titleFromMarkdown(markdown, fallback) {
+  const heading = /^\s{0,3}#{1,6}\s+(.+)$/m.exec(markdown);
+  const firstLine = markdown.trim().split('\n').find(l => l.trim());
+  const raw = (heading ? heading[1] : firstLine) || fallback;
+  const clean = raw.replace(/[*_`~#>\[\]]/g, '').replace(/\s+/g, ' ').trim();
+  if (!clean) return fallback;
+  return clean.length > 60 ? clean.slice(0, 60).trim() + '…' : clean;
+}
+
+function printResponse(meta) {
+  const root = document.getElementById('printRoot');
+  const now = new Date();
+  const heading = titleFromMarkdown(meta.markdown, meta.toolLabel);
+  const printedOn = now.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+  root.innerHTML =
+    `<div class="print-head">` +
+      `<div class="print-brand">Grace Unplugged</div>` +
+      `<div class="print-meta"><span>${escapeHtml(meta.toolLabel)}</span><span>${escapeHtml(printedOn)}</span></div>` +
+    `</div>` +
+    `<div class="print-body">${renderMarkdown(meta.markdown)}</div>` +
+    `<div class="print-foot">Prepared with the Grace Unplugged AI pastoral assistant. Weigh it against Scripture before you preach or share it.</div>`;
+
+  const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const safeHeading = heading.replace(/[\\/:*?"<>|]/g, '').trim();
+  const previousTitle = document.title;
+  document.title = `Grace Unplugged - ${meta.toolLabel} - ${safeHeading} - ${stamp}`;
+  document.body.classList.add('printing');
+
+  logEvent('print.opened', { tool: meta.tool, chars: meta.markdown.length });
+
+  let restored = false;
+  const restore = () => {
+    if (restored) return;
+    restored = true;
+    document.body.classList.remove('printing');
+    root.innerHTML = '';
+    document.title = previousTitle;
+  };
+
+  // afterprint is the reliable signal on desktop. The media-query listener
+  // covers browsers that leave print mode without firing it, and the deferred
+  // check catches the case where the dialog was dismissed before either
+  // listener was attached. Whichever arrives first wins; the rest no-op.
+  window.addEventListener('afterprint', restore, { once: true });
+  const printQuery = window.matchMedia('print');
+  if (printQuery.addEventListener) {
+    printQuery.addEventListener('change', (e) => { if (!e.matches) restore(); });
+  }
+
+  try {
+    window.print();
+  } catch (err) {
+    restore();
+    logEvent('print.failed', { message: err.message });
+    showError('This browser would not open the print dialog. Use the browser menu and choose Print.', err.message, null);
+    return;
+  }
+
+  setTimeout(() => { if (!window.matchMedia('print').matches) restore(); }, 1200);
+}
+
 /* ------------------------------------------------------------------------ */
 
 function setTool(tool, btn) {
@@ -648,7 +822,9 @@ function addBubble(role, html) {
   const isUser = role === 'user';
   const div = document.createElement('div');
   div.className = `msg${isUser ? ' user' : ''}`;
-  div.innerHTML = `<div class="msg-avatar ${isUser ? 'user' : 'ai'}">${isUser ? 'HD' : 'GU'}</div><div class="msg-bubble">${html}</div>`;
+  div.innerHTML =
+    `<div class="msg-avatar ${isUser ? 'user' : 'ai'}">${isUser ? 'HD' : 'GU'}</div>` +
+    `<div class="msg-body"><div class="msg-bubble">${html}</div><div class="msg-actions"></div></div>`;
   msgs.appendChild(div);
   scrollToBottom(true);
   return div.querySelector('.msg-bubble');
@@ -726,6 +902,7 @@ async function sendMessage() {
   let reply = '';
   let frame = null;
   let requestId = null;
+  const toolAtSend = currentTool;
   const startedAt = performance.now();
   const since = () => Math.round(performance.now() - startedAt);
 
@@ -743,6 +920,14 @@ async function sendMessage() {
     scrollToBottom();
   };
   const schedulePaint = () => { if (frame === null) frame = requestAnimationFrame(paint); };
+
+  // The tool can be switched while a response is still arriving, so the print
+  // metadata is captured against the tool that produced it, not the current one.
+  const printMeta = () => ({
+    markdown: reply,
+    tool: toolAtSend,
+    toolLabel: TOOLS[toolAtSend].label
+  });
 
   try {
     const res = await fetch('/api/chat', {
@@ -850,6 +1035,11 @@ async function sendMessage() {
       ms: since()
     });
 
+    // The response is finished and has content, so it can now be put on paper.
+    // Added here rather than at bubble creation so the button never appears
+    // over a half-written answer.
+    addPrintAction(bubble, printMeta());
+
     // The old silent truncation: the model ran out of room and stopped. The
     // text is still a valid turn, so it stays in history and "continue" works.
     if (stopReason === 'max_tokens') {
@@ -876,6 +1066,9 @@ async function sendMessage() {
       bubble.innerHTML = renderMarkdown(reply) +
         `<span class="notice">The response was cut off: ${escapeHtml(err.message)} Send the message again to start over.` +
         (requestId ? ` Reference code: <code>${escapeHtml(requestId)}</code>.` : '') + `</span>`;
+      // Half an answer is still worth keeping — printing re-renders from the
+      // markdown, so the on-screen cut-off notice stays off the page.
+      addPrintAction(bubble, printMeta());
     } else {
       showError(err.message, null, requestId);
     }
